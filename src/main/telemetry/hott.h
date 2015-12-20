@@ -249,7 +249,7 @@ typedef struct HOTT_VARIO_MSG_s {
     uint8_t text_msg[HOTT_VARIO_MSG_TEXT_LEN]; //#18 Free ASCII text message
     uint8_t free_char1;          //#39 Free ASCII character.  appears right to home distance
     uint8_t free_char2;          //#40 Free ASCII character.  appears right to home direction
-    uint8_t free_char3;          //#41 Free ASCII character.  appears? TODO: Check where this char appears
+    uint8_t free_char3;          //#41 Free ASCII character.  appears right to current draw
     uint8_t compass_direction;   //#42 Compass heading in 2� steps. 1 = 2�
     uint8_t version;             //#43 version number TODO: more info?
     uint8_t stop_byte;           //#44 stop uint8_t, constant value 0x7d
