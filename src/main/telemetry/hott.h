@@ -27,9 +27,7 @@
 #define HOTT_TELEMETRY_H_
 
 
-#define HOTTV4_RXTX 4
-
-#define HOTTV4_TEXT_MODE_REQUEST_ID       0x7f
+#define HOTTV4_TEXT_MODE_REQUEST_ID       0x7F
 #define HOTTV4_BINARY_MODE_REQUEST_ID     0x80
 
 #define HOTTV4_BUTTON_DEC    0xEB
@@ -45,7 +43,13 @@
 #define HOTT_EAM_OFFSET_TEMPERATURE   20
 
 #define HOTT_GPS_ALTITUDE_OFFSET 500
-#define HOTT_GPS_CLIMBRATE_OFFSET 120
+#define HOTT_GPS_CLIMBRATE_OFFSET 30000
+#define HOTT_GPS_CLIMBRATE3S_OFFSET 120
+
+#define HOTT_VARIO_ALTITUDE_OFFSET 500
+#define HOTT_VARIO_CLIMBRATE_OFFSET 30000
+
+
 
 typedef enum {
     HOTT_EAM_ALARM1_FLAG_NONE = 0,
@@ -76,49 +80,50 @@ typedef enum {
 // Messages
 //
 
-#define HOTT_TEXT_MODE_REQUEST_ID   0x7f
+#define HOTT_TEXT_MODE_REQUEST_ID   0x7F
 #define HOTT_BINARY_MODE_REQUEST_ID 0x80
 //Sensor Ids
 
 //Id 0x80 is used when no sensor has been found during the bus scan
 // additionaly meaning?
-#define HOTT_TELEMETRY_NO_SENSOR_ID     0x80
+#define HOTT_TELEMETRY_NO_SENSOR_ID         0x80
 
 //Graupner #33601 Vario Module
-#define HOTT_TELEMETRY_VARIO_SENSOR_ID  0x89
+#define HOTT_TELEMETRY_VARIO_SENSOR_ID      0x89
+#define HOTT_TELEMETRY_VARIO_SENSOR_TEXT_ID 0x90
 
 //Graupner #33600 GPS Module
-#define HOTT_TELEMETRY_GPS_SENSOR_ID    0x8a
+#define HOTT_TELEMETRY_GPS_SENSOR_ID        0x8A
+#define HOTT_TELEMETRY_GPS_SENSOR_TEXT_ID   0xA0
 
 //Graupner #337xx Air ESC
-#define HOTT_TELEMETRY_AIRESC_SENSOR_ID 0x8c
+#define HOTT_TELEMETRY_AIRESC_SENSOR_ID     0x8C
 
 //Graupner #33611 General Air Module
-#define HOTT_TELEMETRY_GAM_SENSOR_ID    0x8d
+#define HOTT_TELEMETRY_GAM_SENSOR_ID        0x8D
+#define HOTT_TELEMETRY_GAM_SENSOR_TEXT_ID   0xD0
 
 //Graupner #33620 Electric Air Module
-#define HOTT_TELEMETRY_EAM_SENSOR_ID    0x8e
+#define HOTT_TELEMETRY_EAM_SENSOR_ID        0x8E
+#define HOTT_TELEMETRY_EAM_SENSOR_TEXT_ID   0xE0
 
-
-#define HOTT_EAM_SENSOR_TEXT_ID  0xE0 // Electric Air Module ID
-#define HOTT_GPS_SENSOR_TEXT_ID  0xA0 // GPS Module ID
 
 
 #define HOTT_TEXTMODE_MSG_TEXT_LEN 168
 //Text mode msgs type
 struct HOTT_TEXTMODE_MSG {
-    uint8_t start_byte;  //#01 constant value 0x7b
+    uint8_t start_byte;  //#01 constant value 0x7B
     uint8_t fill1;       //#02 constant value 0x00
     uint8_t warning_beeps;//#03 1=A 2=B ...
     uint8_t msg_txt[HOTT_TEXTMODE_MSG_TEXT_LEN]; //#04 ASCII text to display to
                         // Bit 7 = 1 -> Inverse character display
                         // Display 21x8
-    uint8_t stop_byte;   //#171 constant value 0x7d
+    uint8_t stop_byte;   //#171 constant value 0x7D
 };
 
 typedef struct HOTT_GAM_MSG_s {
-    uint8_t start_byte;          //#01 start uint8_t constant value 0x7c
-    uint8_t gam_sensor_id;       //#02 EAM sensort id. constat value 0x8d
+    uint8_t start_byte;          //#01 start uint8_t constant value 0x7C
+    uint8_t gam_sensor_id;       //#02 EAM sensort id. constat value 0x8D
     uint8_t warning_beeps;       //#03 1=A 2=B ... 0x1a=Z  0 = no alarm
                                 // Q    Min cell voltage sensor 1
                                 // R    Min Battery 1 voltage sensor 1
@@ -142,7 +147,7 @@ typedef struct HOTT_GAM_MSG_s {
                                 // T    Minimum RPM
                                 // Y    Maximum RPM
 
-    uint8_t sensor_id;           //#04 constant value 0xd0
+    uint8_t sensor_id;           //#04 constant value 0xD0
     uint8_t alarm_invers1;       //#05 alarm bitmask. Value is displayed inverted
                                 //Bit#  Alarm field
                                 // 0    all cell voltage
@@ -207,7 +212,7 @@ typedef struct HOTT_GAM_MSG_s {
 
 #define HOTT_VARIO_MSG_TEXT_LEN 21
 typedef struct HOTT_VARIO_MSG_s {
-    uint8_t start_byte;          //#01 start uint8_t constant value 0x7c
+    uint8_t start_byte;          //#01 start uint8_t constant value 0x7C
     uint8_t vario_sensor_id;     //#02 VARIO sensort id. constat value 0x89
     uint8_t warning_beeps;       //#03 1=A 2=B ...
                                 // Q    Min cell voltage sensor 1
@@ -252,12 +257,12 @@ typedef struct HOTT_VARIO_MSG_s {
     uint8_t free_char3;          //#41 Free ASCII character.  appears right to current draw
     uint8_t compass_direction;   //#42 Compass heading in 2� steps. 1 = 2�
     uint8_t version;             //#43 version number TODO: more info?
-    uint8_t stop_byte;           //#44 stop uint8_t, constant value 0x7d
+    uint8_t stop_byte;           //#44 stop uint8_t, constant value 0x7D
 } HOTT_VARIO_MSG_t;
 
 typedef struct HOTT_EAM_MSG_s {
     uint8_t start_byte;          //#01 start uint8_t
-    uint8_t eam_sensor_id;       //#02 EAM sensort id. constat value 0x8e
+    uint8_t eam_sensor_id;       //#02 EAM sensort id. constat value 0x8E
     uint8_t warning_beeps;           //#03 1=A 2=B ... or 'A' - 0x40 = 1
                                 // Q    Min cell voltage sensor 1
                                 // R    Min Battery 1 voltage sensor 1
@@ -279,7 +284,7 @@ typedef struct HOTT_EAM_MSG_s {
                                 // N    climb rate m/sec to high
                                 // M    climb rate m/3sec to high
 
-    uint8_t sensor_id;           //#04 constant value 0xe0
+    uint8_t sensor_id;           //#04 constant value 0xE0
     uint8_t alarm_invers1;       //#05 alarm bitmask. Value is displayed inverted
                                 //Bit#  Alarm field
                                 // 0    mAh
@@ -355,8 +360,8 @@ typedef struct HOTT_EAM_MSG_s {
 
 //HoTT GPS Sensor response to Receiver (?!not?! Smartbox)
 typedef struct HOTT_GPS_MSG_s {
-  uint8_t start_byte;    //#01 constant value 0x7c
-  uint8_t gps_sensor_id; //#02 constant value 0x8a
+  uint8_t start_byte;    //#01 constant value 0x7C
+  uint8_t gps_sensor_id; //#02 constant value 0x8A
   uint8_t warning_beeps; //#03 1=A 2=B ...
                         // A    Min Speed
                         // L    Max Speed
@@ -427,12 +432,12 @@ typedef struct HOTT_GPS_MSG_s {
                         // 0    GPS Graupner #33600
                         // 1    Gyro Receiver
                         // 255 Mikrokopter
-  uint8_t stop_byte;      //#44 constant value 0x7d
+  uint8_t stop_byte;      //#44 constant value 0x7D
 } HOTT_GPS_MSG_t;
 
 typedef struct HOTT_AIRESC_MSG_s {
-    uint8_t start_byte;      //#01 constant value 0x7c
-    uint8_t airesc_sensor_id;   //#02 constant value 0x8c
+    uint8_t start_byte;      //#01 constant value 0x7C
+    uint8_t airesc_sensor_id;   //#02 constant value 0x8C
     uint8_t warning_beeps;   //#03 1=A 2=B ...
                             // A
                             // L
@@ -485,7 +490,7 @@ typedef struct HOTT_AIRESC_MSG_s {
     uint8_t motor_timing_adv; //#41 Motor advanced timing
     uint8_t motor_highest_current;  //#42 Motor number (1-x) with highest current
     uint8_t version;        //#43   Version number (highest current motor 1-x)
-    uint8_t stop_byte;      //#44 constant value 0x7d
+    uint8_t stop_byte;      //#44 constant value 0x7D
 } HOTT_AIRESC_MSG_t;
 
 void handleHoTTTelemetry(void);
