@@ -22,7 +22,7 @@
 #define DISTANCE_BETWEEN_TWO_LONGITUDE_POINTS_AT_EQUATOR    1.113195f  // MagicEarthNumber from APM
 
 #define LAND_DETECTOR_TRIGGER_TIME_MS       2000        // 2 seconds
-#define RTH_WAIT_FOR_GPS_TIMEOUT_MS         2000        // GPS wait timeout for RTH
+#define NAV_WAIT_FOR_GPS_TIMEOUT_MS         2000        // GPS wait time-out
 
 #define MIN_POSITION_UPDATE_RATE_HZ         5       // Minimum position update rate at which XYZ controllers would be applied
 
@@ -30,6 +30,8 @@
 #define NAV_ACCEL_CUTOFF_FREQUENCY_HZ       2       // low-pass filter on XY-acceleration target
 
 #define NAV_FW_VEL_CUTOFF_FREQENCY_HZ       2       // low-pass filter on Z-velocity for fixed wing
+
+#define NAV_DTERM_CUT_HZ                    10
 
 #define NAV_ACCELERATION_XY_MAX             980.0f  // cm/s/s       // approx 45 deg lean angle
 
@@ -120,6 +122,7 @@ typedef enum {
 
     NAV_FSM_EVENT_SUCCESS,
     NAV_FSM_EVENT_ERROR,
+
     NAV_FSM_EVENT_STATE_SPECIFIC,               // State-specific event
     NAV_FSM_EVENT_SWITCH_TO_WAYPOINT_FINISHED = NAV_FSM_EVENT_STATE_SPECIFIC,
 
@@ -182,24 +185,25 @@ typedef enum {
 
 typedef enum {
     /* Navigation controllers */
-    NAV_CTL_ALT         = (1 << 0),     // Altitude controller
-    NAV_CTL_POS         = (1 << 1),     // Position controller
-    NAV_CTL_YAW         = (1 << 2),
-    NAV_CTL_EMERG       = (1 << 3),
+    NAV_CTL_ALT             = (1 << 0),     // Altitude controller
+    NAV_CTL_POS             = (1 << 1),     // Position controller
+    NAV_CTL_YAW             = (1 << 2),
+    NAV_CTL_EMERG           = (1 << 3),
 
     /* Navigation requirements for flight modes and controllers */
-    NAV_REQUIRE_ANGLE   = (1 << 4),
-    NAV_REQUIRE_MAGHOLD = (1 << 5),
-    NAV_REQUIRE_THRTILT = (1 << 6),
+    NAV_REQUIRE_ANGLE       = (1 << 4),
+    NAV_REQUIRE_ANGLE_FW    = (1 << 5),
+    NAV_REQUIRE_MAGHOLD     = (1 << 6),
+    NAV_REQUIRE_THRTILT     = (1 << 7),
 
     /* Navigation autonomous modes */
-    NAV_AUTO_RTH        = (1 << 7),
-    NAV_AUTO_WP         = (1 << 8),
+    NAV_AUTO_RTH            = (1 << 8),
+    NAV_AUTO_WP             = (1 << 9),
 
     /* Adjustments for navigation modes from RC input */
-    NAV_RC_ALT          = (1 << 9),
-    NAV_RC_POS          = (1 << 10),
-    NAV_RC_YAW          = (1 << 11),
+    NAV_RC_ALT              = (1 << 10),
+    NAV_RC_POS              = (1 << 12),
+    NAV_RC_YAW              = (1 << 13),
 } navigationFSMStateFlags_t;
 
 typedef struct {
@@ -223,6 +227,7 @@ typedef struct {
     /* Navigation PID controllers + pre-computed flight parameters */
     navigationPIDControllers_t  pids;
     float                       posDecelerationTime;
+    float                       posResponseExpo;
 
     /* Local system state, both actual (estimated) and desired (target setpoint)*/
     navigationEstimatedState_t  actualState;
@@ -270,10 +275,14 @@ uint32_t calculateDistanceToDestination(t_fp_vector * destinationPos);
 int32_t calculateBearingToDestination(t_fp_vector * destinationPos);
 void resetLandingDetector(void);
 bool isLandingDetected(void);
+
+navigationFSMStateFlags_t navGetCurrentStateFlags(void);
+
 void setHomePosition(t_fp_vector * pos, int32_t yaw);
 void setDesiredPosition(t_fp_vector * pos, int32_t yaw, navSetWaypointFlags_t useMask);
 void setDesiredSurfaceOffset(float surfaceOffset);
 void setDesiredPositionToFarAwayTarget(int32_t yaw, int32_t distance, navSetWaypointFlags_t useMask);
+
 bool isWaypointReached(navWaypointPosition_t * waypoint);
 bool isWaypointMissed(navWaypointPosition_t * waypoint);
 bool isApproachingLastWaypoint(void);
@@ -285,6 +294,8 @@ void updateActualHeading(int32_t newHeading);
 void updateActualHorizontalPositionAndVelocity(bool hasValidSensor, float newX, float newY, float newVelX, float newVelY);
 void updateActualAltitudeAndClimbRate(bool hasValidSensor, float newAltitude, float newVelocity);
 void updateActualSurfaceDistance(bool hasValidSensor, float surfaceDistance, float surfaceVelocity);
+
+bool isGPSGlitchDetected(void);
 
 /* Autonomous navigation functions */
 void setupAutonomousControllerRTH(void);

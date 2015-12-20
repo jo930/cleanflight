@@ -38,6 +38,8 @@
 // Maximum number of waypoints, special waypoint 0 = home,
 #define NAV_MAX_WAYPOINTS       15
 
+#if defined(NAV)
+
 enum {
     NAV_GPS_ATTI    = 0,                    // Pitch/roll stick controls attitude (pitch/roll lean angles)
     NAV_GPS_CRUISE  = 1                     // Pitch/roll stick controls velocity (forward/right speed)
@@ -70,6 +72,7 @@ typedef struct navConfig_s {
 #if defined(INAV_ENABLE_AUTO_MAG_DECLINATION)
         uint8_t automatic_mag_declination;
 #endif
+        uint8_t gps_min_sats;
         uint8_t accz_unarmed_cal;
         uint16_t gps_delay_ms;
 
@@ -97,9 +100,10 @@ typedef struct navConfig_s {
     uint16_t max_speed;                     // autonomous navigation speed cm/sec
     uint16_t max_manual_speed;              // manual velocity control max horizontal speed
     uint16_t max_manual_climb_rate;         // manual velocity control max vertical speed
+    uint16_t land_descent_rate;             // normal RTH landing descent rate
+    uint16_t emerg_descent_rate;            // emergency landing descent rate
     uint16_t rth_altitude;                  // altitude to maintain when RTH is active (depends on rth_alt_control_style) (cm)
     uint16_t min_rth_distance;              // 0 Disables. Minimal distance for RTL in cm, otherwise it will just autoland
-    uint8_t  dterm_cut_hz;                  // Low pass filter cut frequency for D-term calculation (default 5Hz)
     uint8_t  pos_hold_deadband;             // Adds ability to adjust the Hold-position when moving the sticks (assisted mode)
     uint8_t  alt_hold_deadband;             // Defines the neutral zone of throttle stick during altitude hold
 
@@ -208,7 +212,6 @@ typedef struct {
     navWaypointActions_e    activeWpAction;
 } navSystemStatus_t;
 
-#if defined(NAV)
 void navigationUsePIDs(pidProfile_t *pidProfile);
 void navigationUseConfig(navConfig_t *navConfigToUse);
 void navigationUseRcControlsConfig(rcControlsConfig_t *initialRcControlsConfig);
@@ -220,34 +223,43 @@ void navigationInit(navConfig_t *initialnavConfig,
                     rxConfig_t * initialRxConfig,
                     escAndServoConfig_t * initialEscAndServoConfig);
 
+/* Navigation system updates */
 void onNewGPSData(int32_t lat, int32_t lon, int32_t alt, int16_t vel_n, int16_t vel_e, int16_t vel_d, bool vel_ne_valid, bool vel_d_valid, int16_t hdop);
-
-
-void updateWaypointsAndNavigationMode(bool isRXDataNew);
+void updateWaypointsAndNavigationMode(void);
 void updatePositionEstimator(void);
 void applyWaypointNavigationAndAltitudeHold(void);
-void resetHomePosition(void);
-void updateHomePosition(void);
 
+/* Functions to signal navigation requirements to main loop */
 bool naivationRequiresAngleMode(void);
 bool navigationRequiresThrottleTiltCompensation(void);
 int8_t naivationGetHeadingControlState(void);
 bool naivationBlockArming(void);
 
+/* Access to estimated position and velocity */
 float getEstimatedActualVelocity(int axis);
 float getEstimatedActualPosition(int axis);
 
+/* Waypoint list access functions */
 void getWaypoint(uint8_t wpNumber, navWaypoint_t * wpData);
 void setWaypoint(uint8_t wpNumber, navWaypoint_t * wpData);
+void resetWaypointList(void);
 
-void geoConvertGeodeticToLocal(gpsOrigin_s * origin, gpsLocation_t * llh, t_fp_vector * pos);
+/* Geodetic functions */
+typedef enum {
+    GEO_ALT_ABSOLUTE,
+    GEO_ALT_RELATIVE
+} geoAltitudeConversionMode_e;
+
+void geoConvertGeodeticToLocal(gpsOrigin_s * origin, gpsLocation_t * llh, t_fp_vector * pos, geoAltitudeConversionMode_e altConv);
 void geoConvertLocalToGeodetic(gpsOrigin_s * origin, t_fp_vector * pos, gpsLocation_t * llh);
 float geoCalculateMagDeclination(gpsLocation_t * llh); // degrees units
 
+/* Failsafe-forced RTH mode */
 void activateForcedRTH(void);
 void abortForcedRTH(void);
 rthState_e getStateOfForcedRTH(void);
 
+/* Compatibility data */
 extern gpsLocation_t        GPS_home;
 extern uint16_t             GPS_distanceToHome;        // distance to home point in meters
 extern int16_t              GPS_directionToHome;       // direction to home point in degrees

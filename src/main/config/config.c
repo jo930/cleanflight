@@ -133,7 +133,7 @@ static uint32_t activeFeaturesLatch = 0;
 static uint8_t currentControlRateProfileIndex = 0;
 controlRateConfig_t *currentControlRateProfile;
 
-static const uint8_t EEPROM_CONF_VERSION = 108;
+static const uint8_t EEPROM_CONF_VERSION = 109;
 
 static void resetAccelerometerTrims(flightDynamicsTrims_t * accZero, flightDynamicsTrims_t * accGain)
 {
@@ -223,6 +223,7 @@ void resetNavConfig(navConfig_t * navConfig)
 #if defined(INAV_ENABLE_AUTO_MAG_DECLINATION)
     navConfig->inav.automatic_mag_declination = 1;
 #endif
+    navConfig->inav.gps_min_sats = 5;
     navConfig->inav.gps_delay_ms = 200;
     navConfig->inav.accz_unarmed_cal = 1;
 
@@ -244,10 +245,11 @@ void resetNavConfig(navConfig_t * navConfig)
 
     // General navigation parameters
     navConfig->waypoint_radius = 300;
-    navConfig->dterm_cut_hz = 15;
     navConfig->max_speed = 250;
     navConfig->max_manual_speed = 500;
     navConfig->max_manual_climb_rate = 200;
+    navConfig->land_descent_rate = 200;
+    navConfig->emerg_descent_rate = 500;    // 5 m/s
     navConfig->min_rth_distance = 500;   // If closer than 5m - land immediately
     navConfig->rth_altitude = 1000;      // 10m
     navConfig->pos_hold_deadband = 20;
@@ -491,7 +493,6 @@ static void resetConf(void)
 
     masterConfig.inputFilteringMode = INPUT_FILTERING_DISABLED;
 
-    masterConfig.retarded_arm = 0;
     masterConfig.disarm_kill_switch = 1;
     masterConfig.auto_disarm_delay = 5;
     masterConfig.small_angle = 25;

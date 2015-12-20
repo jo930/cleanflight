@@ -48,7 +48,7 @@ typedef enum {
     BOXBLACKBOX,
     BOXFAILSAFE,
     BOXNAVWP,
-    BOXIDLE_UP,
+    BOXAIRMODE,
     CHECKBOX_ITEM_COUNT
 } boxId_e;
 
@@ -126,6 +126,8 @@ typedef struct modeActivationCondition_s {
 
 #define IS_RANGE_USABLE(range) ((range)->startStep < (range)->endStep)
 
+#define SHOULD_RESET_ERRORS ((throttleStatus == THROTTLE_LOW && !(IS_RC_MODE_ACTIVE(BOXAIRMODE))) || !(ARMING_FLAG(ARMED)) || ((throttleStatus == THROTTLE_LOW && feature(FEATURE_MOTOR_STOP))))
+
 typedef struct controlRateConfig_s {
     uint8_t rcRate8;
     uint8_t rcExpo8;
@@ -148,7 +150,7 @@ bool areUsingSticksToArm(void);
 
 bool areSticksInApModePosition(uint16_t ap_mode);
 throttleStatus_e calculateThrottleStatus(rxConfig_t *rxConfig, uint16_t deadband3d_throttle);
-void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStatus, bool retarded_arm, bool disarm_kill_switch);
+void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStatus, bool disarm_kill_switch);
 
 void updateActivatedModes(modeActivationCondition_t *modeActivationConditions);
 
@@ -238,6 +240,7 @@ void updateAdjustmentStates(adjustmentRange_t *adjustmentRanges);
 void processRcAdjustments(controlRateConfig_t *controlRateConfig, rxConfig_t *rxConfig);
 
 bool isUsingSticksForArming(void);
+bool isUsingNavigationModes(void);
 
 int32_t getRcStickDeflection(int32_t axis, uint16_t midrc);
 bool isModeActivationConditionPresent(modeActivationCondition_t *modeActivationConditions, boxId_e modeId);

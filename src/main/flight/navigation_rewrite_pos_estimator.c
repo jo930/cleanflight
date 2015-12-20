@@ -58,8 +58,6 @@
 #define INAV_GPS_GLITCH_RADIUS              250.0f  // 2.5m GPS glitch radius
 #define INAV_GPS_GLITCH_ACCEL               1000.0f // 10m/s/s max possible acceleration for GPS glitch detection
 
-#define INAV_MIN_GPS_SAT_COUNT              5       // Minimum satellite count
-
 #define INAV_POSITION_PUBLISH_RATE_HZ       50      // Publish position updates at this rate
 #define INAV_BARO_UPDATE_RATE               20
 #define INAV_SONAR_UPDATE_RATE              15      // Sonar is limited to 1/60ms update rate, go lower that that
@@ -203,7 +201,7 @@ static bool detectGPSGlitch(t_fp_vector * newLocalPos, float dT)
 
     /* We predict new position based on previous GPS velocity and position */
     predictedGpsPosition.V.X = posEstimator.gps.pos.V.X + posEstimator.gps.vel.V.X * dT;
-    predictedGpsPosition.V.Y = posEstimator.gps.pos.V.Y + posEstimator.gps.vel.V.Y * dT - newLocalPos->V.Y;
+    predictedGpsPosition.V.Y = posEstimator.gps.pos.V.Y + posEstimator.gps.vel.V.Y * dT;
 
     /* Calculate position error */
     gpsDistance = sqrtf(sq(predictedGpsPosition.V.X - newLocalPos->V.X) + sq(predictedGpsPosition.V.Y - newLocalPos->V.Y));
@@ -244,7 +242,7 @@ void onNewGPSData(int32_t newLat, int32_t newLon, int32_t newAlt, int16_t velN, 
     velDValid = false;
 
     if (sensors(SENSOR_GPS)) {
-        if (!(STATE(GPS_FIX) && GPS_numSat >= INAV_MIN_GPS_SAT_COUNT)) {
+        if (!(STATE(GPS_FIX) && GPS_numSat >= posControl.navConfig->inav.gps_min_sats)) {
             isFirstGPSUpdate = true;
             return;
         }
@@ -264,10 +262,10 @@ void onNewGPSData(int32_t newLat, int32_t newLon, int32_t newAlt, int16_t velN, 
 
         /* Process position update if GPS origin is already set, or precision is good enough */
         // FIXME: use HDOP here
-        if ((posControl.gpsOrigin.valid) || (GPS_numSat >= INAV_MIN_GPS_SAT_COUNT)) {
+        if ((posControl.gpsOrigin.valid) || (GPS_numSat >= posControl.navConfig->inav.gps_min_sats)) {
             /* Convert LLH position to local coordinates */
             t_fp_vector newLocalPos;
-            geoConvertGeodeticToLocal(&posControl.gpsOrigin, &newLLH, &newLocalPos);
+            geoConvertGeodeticToLocal(&posControl.gpsOrigin, &newLLH, &newLocalPos, GEO_ALT_ABSOLUTE);
 
             /* If not the first update - calculate velocities */
             if (!isFirstGPSUpdate) {
@@ -463,14 +461,12 @@ static void updateEstimatedTopic(uint32_t currentTime)
     }
 
     /* Figure out if we have valid position data from our data sources */
-    bool isGPSValid = sensors(SENSOR_MAG) && persistentFlag(FLAG_MAG_CALIBRATION_DONE) && posControl.gpsOrigin.valid &&
-                      sensors(SENSOR_GPS) && ((currentTime - posEstimator.gps.lastUpdateTime) <= MS2US(INAV_GPS_TIMEOUT_MS));
+    bool isGPSValid = sensors(SENSOR_GPS) && posControl.gpsOrigin.valid && ((currentTime - posEstimator.gps.lastUpdateTime) <= MS2US(INAV_GPS_TIMEOUT_MS));
     bool isBaroValid = sensors(SENSOR_BARO) && ((currentTime - posEstimator.baro.lastUpdateTime) <= MS2US(INAV_BARO_TIMEOUT_MS));
     bool isSonarValid = sensors(SENSOR_SONAR) && ((currentTime - posEstimator.sonar.lastUpdateTime) <= MS2US(INAV_SONAR_TIMEOUT_MS));
 
 #if defined(INAV_ENABLE_GPS_GLITCH_DETECTION)
     //isGPSValid = isGPSValid && !posEstimator.gps.glitchDetected;
-    NAV_BLACKBOX_DEBUG(0, posEstimator.gps.glitchDetected);
 #endif
 
     /* Apply GPS altitude corrections only on fixed wing aircrafts */
@@ -545,11 +541,13 @@ static void updateEstimatedTopic(uint32_t currentTime)
 
     /* Estimate XY-axis */
     if ((posEstimator.est.eph < posControl.navConfig->inav.max_eph_epv) || isGPSValid) {
-        /* Predict position */
-        inavFilterPredict(X, dt, posEstimator.imu.accelNEU.V.X);
-        inavFilterPredict(Y, dt, posEstimator.imu.accelNEU.V.Y);
+        /* Predict position only if heading is valid (X-Y acceleration is North-East)*/
+        if (isImuHeadingValid()) {
+            inavFilterPredict(X, dt, posEstimator.imu.accelNEU.V.X);
+            inavFilterPredict(Y, dt, posEstimator.imu.accelNEU.V.Y);
+        }
 
-        /* Correct position */
+        /* Correct position from GPS - always if GPS is valid */
         if (isGPSValid) {
             inavFilterCorrectPos(X, dt, posEstimator.gps.pos.V.X - posEstimator.history.pos[gpsHistoryIndex].V.X, posControl.navConfig->inav.w_xy_gps_p);
             inavFilterCorrectPos(Y, dt, posEstimator.gps.pos.V.Y - posEstimator.history.pos[gpsHistoryIndex].V.Y, posControl.navConfig->inav.w_xy_gps_p);
@@ -580,7 +578,6 @@ static void updateEstimatedTopic(uint32_t currentTime)
     posEstimator.est.surface = -1;
     posEstimator.est.surfaceVel = 0;
 #endif
-
 }
 
 /**
@@ -628,6 +625,11 @@ static void publishEstimatedTopic(uint32_t currentTime)
             posEstimator.history.index = 0;
         }
     }
+}
+
+bool isGPSGlitchDetected(void)
+{
+    return posEstimator.gps.glitchDetected;
 }
 
 /**

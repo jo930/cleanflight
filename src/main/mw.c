@@ -485,8 +485,7 @@ void processRx(void)
 
     throttleStatus_e throttleStatus = calculateThrottleStatus(&masterConfig.rxConfig, masterConfig.flight3DConfig.deadband3d_throttle);
 
-    if (throttleStatus == THROTTLE_LOW && !(IS_RC_MODE_ACTIVE(BOXIDLE_UP))) {
-        pidResetErrorAngle();
+    if (SHOULD_RESET_ERRORS) {
         pidResetErrorGyro();
     }
 
@@ -534,7 +533,7 @@ void processRx(void)
         }
     }
 
-    processRcStickPositions(&masterConfig.rxConfig, throttleStatus, masterConfig.retarded_arm, masterConfig.disarm_kill_switch);
+    processRcStickPositions(&masterConfig.rxConfig, throttleStatus, masterConfig.disarm_kill_switch);
 
     updateActivatedModes(currentProfile->modeActivationConditions);
 
@@ -550,7 +549,6 @@ void processRx(void)
         canUseHorizonMode = false;
 
         if (!FLIGHT_MODE(ANGLE_MODE)) {
-            pidResetErrorAngle();
             ENABLE_FLIGHT_MODE(ANGLE_MODE);
         }
     } else {
@@ -562,7 +560,6 @@ void processRx(void)
         DISABLE_FLIGHT_MODE(ANGLE_MODE);
 
         if (!FLIGHT_MODE(HORIZON_MODE)) {
-            pidResetErrorAngle();
             ENABLE_FLIGHT_MODE(HORIZON_MODE);
         }
     } else {
@@ -676,7 +673,13 @@ void loop(void)
         // change this based on available hardware
 #ifdef GPS
         if (feature(FEATURE_GPS)) {
+#ifdef HIL
+            // Don't call gpsThread at all when in HIL mode
+            if (!hilActive)
+                gpsThread();
+#else
             gpsThread();
+#endif
         }
 #endif
     }
@@ -701,7 +704,9 @@ void loop(void)
         }
 
 #if defined(NAV)
-        updateWaypointsAndNavigationMode(isRXDataNew);
+        if (isRXDataNew) {
+            updateWaypointsAndNavigationMode();
+        }
 #endif
 
         isRXDataNew = false;

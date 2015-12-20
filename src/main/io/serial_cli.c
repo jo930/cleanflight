@@ -199,8 +199,8 @@ static const char * const sensorTypeNames[] = {
 static const char * const sensorHardwareNames[4][11] = {
     { "", "None", "MPU6050", "L3G4200D", "MPU3050", "L3GD20", "MPU6000", "MPU6500", "FAKE", NULL },
     { "", "None", "ADXL345", "MPU6050", "MMA845x", "BMA280", "LSM303DLHC", "MPU6000", "MPU6500", "FAKE", NULL },
-    { "", "None", "BMP085", "MS5611", "BMP280", NULL },
-    { "", "None", "HMC5883", "AK8975", NULL }
+    { "", "None", "BMP085", "MS5611", "BMP280", "FAKE", NULL },
+    { "", "None", "HMC5883", "AK8975", "FAKE", NULL }
 };
 #endif
 
@@ -358,7 +358,7 @@ static const char * const lookupTableSerialRX[] = {
 };
 
 static const char * const lookupTableSoftFilter[] = {
-    "LOW", "MEDIUM", "HIGH"
+    "NONE", "LOW", "MEDIUM", "HIGH"
 };
 
 static const char * const lookupTableFailsafeProcedure[] = {
@@ -503,7 +503,6 @@ const clivalue_t valueTable[] = {
     { "motor_pwm_rate",             VAR_UINT16 | MASTER_VALUE,  &masterConfig.motor_pwm_rate, .config.minmax = { 50,  32000 }, 0 },
     { "servo_pwm_rate",             VAR_UINT16 | MASTER_VALUE,  &masterConfig.servo_pwm_rate, .config.minmax = { 50,  498 }, 0 },
 
-    { "retarded_arm",               VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP,  &masterConfig.retarded_arm, .config.lookup = { TABLE_OFF_ON }, 0 },
     { "disarm_kill_switch",         VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP,  &masterConfig.disarm_kill_switch, .config.lookup = { TABLE_OFF_ON }, 0 },
     { "auto_disarm_delay",          VAR_UINT8  | MASTER_VALUE,  &masterConfig.auto_disarm_delay, .config.minmax = { 0,  60 }, 0 },
     { "small_angle",                VAR_UINT8  | MASTER_VALUE,  &masterConfig.small_angle, .config.minmax = { 0,  180 }, 0 },
@@ -544,6 +543,7 @@ const clivalue_t valueTable[] = {
 
     { "inav_accz_unarmedcal",       VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, &masterConfig.navConfig.inav.accz_unarmed_cal, .config.lookup = { TABLE_OFF_ON }, 0 },
     { "inav_gps_delay",             VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.inav.gps_delay_ms, .config.minmax = { 0,  500 }, 0 },
+    { "inav_gps_min_sats",          VAR_UINT8  | MASTER_VALUE, &masterConfig.navConfig.inav.gps_min_sats, .config.minmax = { 5,  10}, 0 },
 
     { "inav_w_z_baro_p",            VAR_FLOAT  | MASTER_VALUE, &masterConfig.navConfig.inav.w_z_baro_p, .config.minmax = { 0,  10 }, 0 },
     { "inav_w_z_gps_p",             VAR_FLOAT  | MASTER_VALUE, &masterConfig.navConfig.inav.w_z_gps_p, .config.minmax = { 0,  10 }, 0 },
@@ -560,11 +560,12 @@ const clivalue_t valueTable[] = {
     { "nav_use_midrc_for_althold",  VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, &masterConfig.navConfig.flags.use_midrc_for_althold, .config.lookup = { TABLE_OFF_ON }, 0 },
     { "nav_extra_arming_safety",    VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, &masterConfig.navConfig.flags.extra_arming_safety, .config.lookup = { TABLE_OFF_ON }, 0 },
     { "nav_user_control_mode",      VAR_UINT8  | MASTER_VALUE | MODE_LOOKUP, &masterConfig.navConfig.flags.user_control_mode, .config.lookup = { TABLE_NAV_USER_CTL_MODE }, 0 },
-    { "nav_dterm_cut_hz",           VAR_UINT8  | MASTER_VALUE, &masterConfig.navConfig.dterm_cut_hz, .config.minmax = { 0,  100 }, 0 },
-    { "nav_wp_radius",              VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.waypoint_radius, .config.minmax = { 100,  2000 }, 0 },
+    { "nav_wp_radius",              VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.waypoint_radius, .config.minmax = { 100,  10000 }, 0 },
     { "nav_max_speed",              VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.max_speed, .config.minmax = { 10,  2000 }, 0 },
     { "nav_manual_speed",           VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.max_manual_speed, .config.minmax = { 10,  2000 }, 0 },
     { "nav_manual_climb_rate",      VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.max_manual_climb_rate, .config.minmax = { 10,  2000 }, 0 },
+    { "nav_landing_speed",          VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.land_descent_rate, .config.minmax = { 100,  2000 }, 0 },
+    { "nav_emerg_landing_speed",    VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.emerg_descent_rate, .config.minmax = { 100,  2000 }, 0 },
     { "nav_pos_hold_deadband",      VAR_UINT8  | MASTER_VALUE, &masterConfig.navConfig.pos_hold_deadband, .config.minmax = { 10,  250 }, 0 },
     { "nav_alt_hold_deadband",      VAR_UINT8  | MASTER_VALUE, &masterConfig.navConfig.alt_hold_deadband, .config.minmax = { 10,  250 }, 0 },
     { "nav_min_rth_distance",       VAR_UINT16 | MASTER_VALUE, &masterConfig.navConfig.min_rth_distance, .config.minmax = { 0,  5000 }, 0 },

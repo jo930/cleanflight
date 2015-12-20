@@ -66,6 +66,11 @@ static pidProfile_t *pidProfile;
 // true if arming is done via the sticks (as opposed to a switch)
 static bool isUsingSticksToArm = true;
 
+#ifdef NAV
+// true if pilot has any of GPS modes configured
+static bool isUsingNAVModes = false;
+#endif
+
 int16_t rcCommand[4];           // interval [1000;2000] for THROTTLE and [-500;+500] for ROLL/PITCH/YAW
 
 uint32_t rcModeActivationMask; // one bit per mode defined in boxId_e
@@ -106,6 +111,10 @@ bool isUsingSticksForArming(void)
     return isUsingSticksToArm;
 }
 
+bool isUsingNavigationModes(void)
+{
+    return isUsingNAVModes;
+}
 
 bool areSticksInApModePosition(uint16_t ap_mode)
 {
@@ -122,7 +131,7 @@ throttleStatus_e calculateThrottleStatus(rxConfig_t *rxConfig, uint16_t deadband
     return THROTTLE_HIGH;
 }
 
-void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStatus, bool retarded_arm, bool disarm_kill_switch)
+void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStatus, bool disarm_kill_switch)
 {
     static uint8_t rcDelayCommand;      // this indicates the number of time (multiple of RC measurement at 50Hz) the sticks must be maintained to run or switch off motors
     static uint8_t rcSticks;            // this hold sticks position for command combos
@@ -182,15 +191,6 @@ void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStat
                 rcDelayCommand = 0;              // reset so disarm tone will repeat
             }
         }
-            // Disarm on roll (only when retarded_arm is enabled)
-        if (retarded_arm && (rcSticks == THR_LO + YAW_CE + PIT_CE + ROL_LO)) {
-            if (ARMING_FLAG(ARMED))
-                mwDisarm();
-            else {
-                beeper(BEEPER_DISARM_REPEAT);    // sound tone while stick held
-                rcDelayCommand = 0;              // reset so disarm tone will repeat
-            }
-        }
     }
 
     if (ARMING_FLAG(ARMED)) {
@@ -227,12 +227,6 @@ void processRcStickPositions(rxConfig_t *rxConfig, throttleStatus_e throttleStat
 
         if (rcSticks == THR_LO + YAW_HI + PIT_CE + ROL_CE) {
             // Arm via YAW
-            mwArm();
-            return;
-        }
-
-        if (retarded_arm && (rcSticks == THR_LO + YAW_CE + PIT_CE + ROL_HI)) {
-            // Arm via ROLL
             mwArm();
             return;
         }
@@ -724,6 +718,12 @@ void useRcControlsConfig(modeActivationCondition_t *modeActivationConditions, es
     pidProfile = pidProfileToUse;
 
     isUsingSticksToArm = !isModeActivationConditionPresent(modeActivationConditions, BOXARM);
+
+#ifdef NAV
+    isUsingNAVModes = isModeActivationConditionPresent(modeActivationConditions, BOXNAVPOSHOLD) ||
+                        isModeActivationConditionPresent(modeActivationConditions, BOXNAVRTH) ||
+                        isModeActivationConditionPresent(modeActivationConditions, BOXNAVWP);
+#endif
 }
 
 void resetAdjustmentStates(void)
