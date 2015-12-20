@@ -55,7 +55,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
-
+#include <stdio.h>
 
 #include "platform.h"
 #include "build_config.h"
@@ -64,31 +64,27 @@
 #ifdef TELEMETRY
 
 #include "common/axis.h"
+#include "common/maths.h"
 
 #include "drivers/system.h"
 
 #include "drivers/serial.h"
+
 #include "io/serial.h"
+#include "io/gps.h"
 
 #include "config/runtime_config.h"
+#include "config/config.h"
 
 #include "sensors/sensors.h"
 #include "sensors/battery.h"
-
-////// NEW
-#include <stdio.h>
-#include "common/maths.h"
 #include "sensors/barometer.h"
-#include "flight/imu.h"
 
-#include "config/config.h"
-
-#include "config/runtime_config.h"
-////// NEW //////
 
 #include "flight/pid.h"
 #include "flight/navigation_rewrite.h"
-#include "io/gps.h"
+#include "flight/imu.h"
+
 
 #include "telemetry/telemetry.h"
 #include "telemetry/hott.h"
@@ -112,7 +108,7 @@ static uint8_t *hottMsg = NULL;
 static uint8_t hottMsgRemainingBytesToSendCount;
 static uint8_t hottMsgCrc;
 
-////// NEW
+// Variables for Vario-Module and Climbrate
 uint16_t VarioAltitudeMax = 0;
 int16_t VarioAltitudeMin = 0;
 
@@ -126,7 +122,7 @@ int16_t  climbrate10sGps = 0;
 int16_t  climbrate1sBaro = 0;
 int16_t  climbrate3sBaro = 0;
 int16_t  climbrate10sBaro = 0;
-////// NEW //////
+
 
 #define HOTT_CRC_SIZE (sizeof(hottMsgCrc))
 
@@ -142,9 +138,8 @@ static portSharing_e hottPortSharing;
 
 static HOTT_GPS_MSG_t hottGPSMessage;
 static HOTT_EAM_MSG_t hottEAMMessage;
-////// NEW
 static HOTT_VARIO_MSG_t hottVARIOMessage;
-////// NEW //////
+
 
 static void initialiseEAMMessage(HOTT_EAM_MSG_t *msg, size_t size)
 {
@@ -174,7 +169,7 @@ static void initialiseGPSMessage(HOTT_GPS_MSG_t *msg, size_t size)
 #endif
 
 
-////// NEW
+
 #ifdef BARO
 static void initialiseVARIOMessage(HOTT_VARIO_MSG_t *msg, size_t size)
 {
@@ -185,7 +180,7 @@ static void initialiseVARIOMessage(HOTT_VARIO_MSG_t *msg, size_t size)
     msg->stop_byte = 0x7D;
 }
 #endif
-////// NEW //////
+
 
 static void initialiseMessages(void)
 {
@@ -194,20 +189,15 @@ static void initialiseMessages(void)
     initialiseGPSMessage(&hottGPSMessage, sizeof(hottGPSMessage));
 #endif
 
-
-////// NEW
 #ifdef BARO
     initialiseVARIOMessage(&hottVARIOMessage, sizeof(hottVARIOMessage));
 #endif
-////// NEW //////
 }
 
 
 
-////// NEW
-// Climbrate-Calculation and MinMax
+// Climbrate-Calculation for gps
 #ifdef GPS
-
 void update_table_altitude_gps(void)
 {
   static uint32_t table_now = 0;
@@ -235,9 +225,8 @@ void climbrateCalculationGps(void)
 #endif
 
 
-
+// Climbrate-Calculation and MinMax for baro
 #ifdef BARO
-
 void update_table_altitude_baro(void)
 {
   static uint32_t table_now = 0;
@@ -275,12 +264,8 @@ void Vario_Altitude_Min(void)
     if (BaroAlt < VarioAltitudeMin){
     VarioAltitudeMin = BaroAlt;
     }
-}  
-
-
+}
 #endif
-////// NEW //////
-
 
 
 
@@ -314,9 +299,7 @@ void addGPSCoordinates(HOTT_GPS_MSG_t *hottGPSMessage, int32_t latitude, int32_t
 
 void hottPrepareGPSResponse(HOTT_GPS_MSG_t *hottGPSMessage)
 {
-////// NEW
     hottGPSMessage->flight_direction = GPS_ground_course / 20; // GPS_ground_course = degrees * 10; Hott: 1 = 2 degrees -> GPS_ground_course / 10 / 2 = / 20
-////// NEW //////
     hottGPSMessage->gps_satelites = GPS_numSat;
 
     if (!STATE(GPS_FIX)) {
@@ -341,9 +324,7 @@ void hottPrepareGPSResponse(HOTT_GPS_MSG_t *hottGPSMessage)
     hottGPSMessage->home_distance_H = GPS_distanceToHome >> 8;
 
 
-////// NEW
-    climbrateCalculationGps(); // climbrates in cm/s ?
-
+    climbrateCalculationGps();
 
     uint16_t hottGpsAltitude = HOTT_GPS_ALTITUDE_OFFSET + GPS_altitude;
     hottGPSMessage->altitude_L = hottGpsAltitude & 0x00FF;
@@ -356,35 +337,26 @@ void hottPrepareGPSResponse(HOTT_GPS_MSG_t *hottGPSMessage)
     uint8_t hottGpsClimbrate3s = HOTT_GPS_CLIMBRATE3S_OFFSET + climbrate3sGps;
     hottGPSMessage->climbrate3s = hottGpsClimbrate3s;
 
-////// NEW //////
-
     hottGPSMessage->home_direction = GPS_directionToHome;
 
-////// NEW
-if(STATE(GPS_FIX_HOME)){  // If HomeIsSet = 1; else 0
-  hottGPSMessage->free_char3 = 0x31;
-} else {
-  hottGPSMessage->free_char3 = 0x30;
-}
-////// NEW //////
-
-
+    if(STATE(GPS_FIX_HOME)){  // If HomeIsSet = 1; else 0
+      hottGPSMessage->free_char3 = 0x31; // free character next to GPS-NumSat = 1
+    } else {
+      hottGPSMessage->free_char3 = 0x30; // free character next to GPS-NumSat = 0
+    }
 }
 #endif
 
 
-////// NEW
+
 #ifdef BARO
 void hottPrepareVARIOResponse(HOTT_VARIO_MSG_t *hottVARIOMessage)
 {
-////// NEW
-
-if (millis() > DELAY_FOR_BARO_INITIALISATION) { // Allow Baro to boot correctly
-    climbrateCalculationBaro(); // climbrates in cm/s because BaroAlt is cm
-    Vario_Altitude_Max(); // in cm because BaroAlt is cm
-    Vario_Altitude_Min(); // in cm because BaroAlt is cm
-  }
-////// NEW //////
+    if (millis() > DELAY_FOR_BARO_INITIALISATION) { // Allow Baro to boot correctly
+      climbrateCalculationBaro(); // climbrates in cm/s because BaroAlt is cm
+      Vario_Altitude_Max(); // in cm because BaroAlt is cm
+      Vario_Altitude_Min(); // in cm because BaroAlt is cm
+    }
 
     uint16_t hottVarioAltitude = HOTT_VARIO_ALTITUDE_OFFSET + BaroAlt / 100;
     hottVARIOMessage->altitude_L = hottVarioAltitude & 0x00FF;
@@ -410,15 +382,12 @@ if (millis() > DELAY_FOR_BARO_INITIALISATION) { // Allow Baro to boot correctly
     hottVARIOMessage->altitude_min_L = hottVarioAltitudeMin & 0x00FF;
     hottVARIOMessage->altitude_min_H = hottVarioAltitudeMin >> 8;
 
-    // hottVARIOMessage->text_msg[0] = 0x31;
-    // hottVARIOMessage->text_msg[1] = 0x32;
-    // hottVARIOMessage->text_msg[2] = 0x33;
-    // hottVARIOMessage->text_msg[3] = 0x34;
     
-    // Free Text in Vario for Arming-Flag and Flight-Mode
+    // Free Text in Vario for Arming-Flag, Flight-Mode and Profil-Number
     char armed[6];    
     char mode[10];
-    
+    uint8_t Current_Profile_Index = getCurrentProfile();
+
     if (ARMING_FLAG(ARMED)) {
       strncpy(armed,"ARMED",sizeof(armed));
     } else {
@@ -448,14 +417,12 @@ if (millis() > DELAY_FOR_BARO_INITIALISATION) { // Allow Baro to boot correctly
       strncpy(mode,"RTH",sizeof(mode));
     }
 
-    uint8_t Current_Profile_Index = getCurrentProfile();
-
     memset(hottVARIOMessage->text_msg,0x20,HOTT_VARIO_MSG_TEXT_LEN); // Fill with spaces
     snprintf((char *)hottVARIOMessage->text_msg,HOTT_VARIO_MSG_TEXT_LEN, "%s %s P%i", armed, mode, Current_Profile_Index);
 
 }
 #endif
-////// NEW //////
+
 
 
 static bool shouldTriggerBatteryAlarmNow(void)
@@ -480,22 +447,6 @@ static inline void updateAlarmBatteryStatus(HOTT_EAM_MSG_t *hottEAMMessage)
         }
     }
 }
-
-
-////// NEW
-/*
-static inline void hottEAMUpdateAltSpeed(HOTT_EAM_MSG_t *hottEAMMessage)
-{
-    hottEAMMessage->altitude_L = XXX & 0x00FF;
-    hottEAMMessage->altitude_H = XXX >> 8;
-    hottEAMMessage->climbrate_L = XXX & 0x00FF;
-    hottEAMMessage->climbrate_H = XXX >> 8;
-    hottEAMMessage->climbrate3s = XXX;
-    hottEAMMessage->speed_L = XXX & 0x00FF;
-    hottEAMMessage->speed_H = XXX >> 8;
-}
-*/
-////// NEW //////
 
 static inline void hottEAMUpdateBattery(HOTT_EAM_MSG_t *hottEAMMessage)
 {
@@ -550,17 +501,16 @@ static inline void hottEAMCustomData(HOTT_EAM_MSG_t *hottEAMMessage) // In my ca
       custom_hott_flight_mode = 8;
     }
 
+    uint8_t Current_Profile_Index = getCurrentProfile();
 
     uint8_t custom_hott_gps_fix_home = STATE(GPS_FIX_HOME);
     uint8_t custom_hott_gps_satelites = GPS_numSat;
     uint8_t custom_hott_gps_home_direction = GPS_directionToHome / 2;
 
-
     uint8_t custom_hott_pitch = (DECIDEGREES_TO_DEGREES(attitude.values.pitch) + 90) / 2;
     uint8_t custom_hott_roll = (DECIDEGREES_TO_DEGREES(attitude.values.roll) + 180) / 2;   
     uint8_t custom_hott_yaw = DECIDEGREES_TO_DEGREES(attitude.values.yaw) / 2;
 
-    uint8_t Current_Profile_Index = getCurrentProfile();
 
     hottEAMMessage->cell1_L = custom_hott_arming_flag;
     hottEAMMessage->cell2_L = custom_hott_flight_mode;
@@ -576,17 +526,9 @@ static inline void hottEAMCustomData(HOTT_EAM_MSG_t *hottEAMMessage) // In my ca
     hottEAMMessage->cell5_H = Current_Profile_Index;
     hottEAMMessage->cell6_H = 0;
     hottEAMMessage->cell7_H = 0;
-/*
-    hottEAMMessage->cell1_H = custom_hott_pitch & 0xFF;
-    hottEAMMessage->cell2_H = custom_hott_pitch >> 8;
-    hottEAMMessage->cell3_H = custom_hott_roll & 0xFF;
-    hottEAMMessage->cell4_H = custom_hott_roll >> 8;
-    hottEAMMessage->cell5_H = custom_hott_yaw & 0xFF;
-    hottEAMMessage->cell6_H = custom_hott_yaw >> 8;
-*/
 }
 
-////// NEW //////
+
 
 void hottPrepareEAMResponse(HOTT_EAM_MSG_t *hottEAMMessage)
 {
@@ -658,12 +600,10 @@ static inline void hottSendEAMResponse(void)
     hottSendResponse((uint8_t *)&hottEAMMessage, sizeof(hottEAMMessage));
 }
 
-////// NEW
 static inline void hottSendVARIOResponse(void)
 {
     hottSendResponse((uint8_t *)&hottVARIOMessage, sizeof(hottVARIOMessage));
 }
-////// NEW //////
 
 
 static void hottPrepareMessages(void) {
@@ -671,12 +611,9 @@ static void hottPrepareMessages(void) {
 #ifdef GPS
     hottPrepareGPSResponse(&hottGPSMessage);
 #endif
-
-////// NEW
 #ifdef BARO
     hottPrepareVARIOResponse(&hottVARIOMessage);
 #endif
-////// NEW //////
 }
 
 static void processBinaryModeRequest(uint8_t address) {
@@ -684,10 +621,9 @@ static void processBinaryModeRequest(uint8_t address) {
 #ifdef HOTT_DEBUG
     static uint8_t hottBinaryRequests = 0;
     static uint8_t hottGPSRequests = 0;
-    static uint8_t hottEAMRequests = 0;
-////// NEW    
+    static uint8_t hottEAMRequests = 0;   
     static uint8_t hottVARIORequests = 0;
-////// NEW //////
+
 #endif
 
     switch (address) {
@@ -708,7 +644,6 @@ static void processBinaryModeRequest(uint8_t address) {
             hottSendEAMResponse();
             break;
 
-////// NEW
 #ifdef BARO
         case HOTT_TELEMETRY_VARIO_SENSOR_ID:
 #ifdef HOTT_DEBUG
@@ -719,7 +654,6 @@ static void processBinaryModeRequest(uint8_t address) {
             }
             break;
 #endif
-////// NEW //////
     }
 
 
@@ -730,12 +664,9 @@ static void processBinaryModeRequest(uint8_t address) {
     debug[1] = hottGPSRequests;
 #endif
     debug[2] = hottEAMRequests;
-
-////// NEW
 #ifdef BARO
     debug[3] = hottVARIORequests;
 #endif
-////// NEW //////
 #endif
 
 }
