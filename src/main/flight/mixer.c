@@ -730,9 +730,14 @@ STATIC_UNIT_TESTED void servoMixer(void)
         }
     }
 
-    for (i = 0; i < MAX_SUPPORTED_SERVOS; i++) {
-        servo[i] = ((int32_t)servoConf[i].rate * servo[i]) / 100L;
-        servo[i] += determineServoMiddleOrForwardFromChannel(i);
+    for(i = 0; i < MAX_SUPPORTED_SERVOS; i++) {
+    // propotional Servo patch
+       // here we honor the servo rate and reversing! if rate is 100 we get full propotional path
+       int32_t path = (int32_t)servoConf[i].rate * servo[i]; 
+       // depending on the side the left path to max/min is different so taking that in account for propotional path
+       servo[i] = (path * (path>=0 ? servoConf[i].max - servoConf[i].middle : servoConf[i].middle - servoConf[i].min)) / (100L * 500L);  
+
+      servo[i] += determineServoMiddleOrForwardFromChannel(i);
     }
 }
 
