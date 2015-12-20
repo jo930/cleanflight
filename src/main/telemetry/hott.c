@@ -472,8 +472,6 @@ static inline void hottEAMUpdateBatteryDrawnCapacity(HOTT_EAM_MSG_t *hottEAMMess
     hottEAMMessage->batt_cap_H = mAh >> 8;
 }
 
-////// NEW
-
 static inline void hottEAMCustomData(HOTT_EAM_MSG_t *hottEAMMessage) // In my case, not all Telemetry-Data was passed threw from the transmitter (mz-12) to an arduino simulating a smart-box, so I used Data in EAM-Module
 {
     uint8_t custom_hott_arming_flag = ARMING_FLAG(ARMED);
