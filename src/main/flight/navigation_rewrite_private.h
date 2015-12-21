@@ -22,7 +22,6 @@
 #define DISTANCE_BETWEEN_TWO_LONGITUDE_POINTS_AT_EQUATOR    1.113195f  // MagicEarthNumber from APM
 
 #define LAND_DETECTOR_TRIGGER_TIME_MS       2000        // 2 seconds
-#define NAV_WAIT_FOR_GPS_TIMEOUT_MS         2000        // GPS wait time-out
 
 #define MIN_POSITION_UPDATE_RATE_HZ         5       // Minimum position update rate at which XYZ controllers would be applied
 
@@ -218,11 +217,9 @@ typedef struct {
 
 typedef struct {
     /* Flags and navigation system state */
-    navigationFSMState_t    navState;
-    uint32_t                navStateActivationTimeMs;
+    navigationFSMState_t        navState;
 
-    bool                    enabled;
-    navigationFlags_t       flags;
+    navigationFlags_t           flags;
 
     /* Navigation PID controllers + pre-computed flight parameters */
     navigationPIDControllers_t  pids;
@@ -232,6 +229,9 @@ typedef struct {
     /* Local system state, both actual (estimated) and desired (target setpoint)*/
     navigationEstimatedState_t  actualState;
     navigationDesiredState_t    desiredState;   // waypoint coordinates + velocity
+
+    uint32_t                    lastValidPositionTimeMs;
+    uint32_t                    lastValidAltitudeTimeMs;
 
     /* INAV GPS origin (position where GPS fix was first acquired) */
     gpsOrigin_s                 gpsOrigin;
@@ -286,6 +286,7 @@ void setDesiredPositionToFarAwayTarget(int32_t yaw, int32_t distance, navSetWayp
 bool isWaypointReached(navWaypointPosition_t * waypoint);
 bool isWaypointMissed(navWaypointPosition_t * waypoint);
 bool isApproachingLastWaypoint(void);
+float getActiveWaypointSpeed(void);
 
 int16_t rcCommandToLeanAngle(int16_t rcCommand);
 int16_t leanAngleToRcCommand(int16_t leanAngle);
@@ -294,6 +295,8 @@ void updateActualHeading(int32_t newHeading);
 void updateActualHorizontalPositionAndVelocity(bool hasValidSensor, float newX, float newY, float newVelX, float newVelY);
 void updateActualAltitudeAndClimbRate(bool hasValidSensor, float newAltitude, float newVelocity);
 void updateActualSurfaceDistance(bool hasValidSensor, float surfaceDistance, float surfaceVelocity);
+
+bool checkForPositionSensorTimeout(void);
 
 bool isGPSGlitchDetected(void);
 

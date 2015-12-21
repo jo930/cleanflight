@@ -591,11 +591,6 @@ static flightModeFlags_e navGetMappedFlightModes(navigationFSMState_t state)
     return navFSM[state].mapToFlightModes;
 }
 
-static uint32_t navGetCurrentStateTime(void)
-{
-    return millis() - posControl.navStateActivationTimeMs;
-}
-
 navigationFSMStateFlags_t navGetCurrentStateFlags(void)
 {
     return navGetStateFlags(posControl.navState);
@@ -701,7 +696,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_INITIALIZE(navigati
         }
     }
     /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (navGetCurrentStateTime() > NAV_WAIT_FOR_GPS_TIMEOUT_MS) {
+    else if (checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     /* No valid POS sensor but still within valid timeout - wait */
@@ -761,7 +756,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_2D_GPS_FAILING(navi
         return NAV_FSM_EVENT_SUCCESS;       // NAV_STATE_RTH_2D_HEAD_HOME
     }
     /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (navGetCurrentStateTime() > NAV_WAIT_FOR_GPS_TIMEOUT_MS) {
+    else if (checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     /* No valid POS sensor but still within valid timeout - wait */
@@ -823,7 +818,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_3D_CLIMB_TO_SAFE_AL
     UNUSED(previousState);
 
     // If no position sensor available - land immediately
-    if (!posControl.flags.hasValidPositionSensor) {
+    if (!posControl.flags.hasValidPositionSensor && checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
 
@@ -885,7 +880,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_3D_HOVER_PRIOR_TO_L
     UNUSED(previousState);
 
     // If no position sensor available - land immediately
-    if (!posControl.flags.hasValidPositionSensor) {
+    if (!posControl.flags.hasValidPositionSensor && checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
 
@@ -993,7 +988,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_WAYPOINT_IN_PROGRESS(na
         }
     }
     /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (navGetCurrentStateTime() > NAV_WAIT_FOR_GPS_TIMEOUT_MS) {
+    else if (checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     else {
@@ -1028,7 +1023,7 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_WAYPOINT_FINISHED(navig
         return NAV_FSM_EVENT_NONE;
     }
     /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (navGetCurrentStateTime() > NAV_WAIT_FOR_GPS_TIMEOUT_MS) {
+    else if (checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     else {
@@ -1061,17 +1056,12 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_EMERGENCY_LANDING_FINIS
     return NAV_FSM_EVENT_SUCCESS;
 }
 
-static navigationFSMState_t navSetNewFSMState(navigationFSMState_t newState, uint32_t currentMillis)
+static navigationFSMState_t navSetNewFSMState(navigationFSMState_t newState)
 {
     navigationFSMState_t previousState;
 
     previousState = posControl.navState;
     posControl.navState = newState;
-
-    if (previousState != newState) {
-        posControl.navStateActivationTimeMs = currentMillis;
-    }
-
     return previousState;
 }
 
@@ -1085,14 +1075,14 @@ static void navProcessFSMEvents(navigationFSMEvent_t injectedEvent)
     if ((navFSM[posControl.navState].timeoutMs > 0) && (navFSM[posControl.navState].onEvent[NAV_FSM_EVENT_TIMEOUT] != NAV_STATE_UNDEFINED) &&
             ((currentMillis - lastStateProcessTime) >= navFSM[posControl.navState].timeoutMs)) {
 		/* Update state */
-        previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[NAV_FSM_EVENT_TIMEOUT], currentMillis);
+        previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[NAV_FSM_EVENT_TIMEOUT]);
 
 		/* Call new state's entry function */
 		while (navFSM[posControl.navState].onEntry) {
 			navigationFSMEvent_t newEvent = navFSM[posControl.navState].onEntry(previousState);
 
 			if ((newEvent != NAV_FSM_EVENT_NONE) && (navFSM[posControl.navState].onEvent[newEvent] != NAV_STATE_UNDEFINED)) {
-                previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[newEvent], currentMillis);
+                previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[newEvent]);
 			}
 			else {
 				break;
@@ -1105,14 +1095,14 @@ static void navProcessFSMEvents(navigationFSMEvent_t injectedEvent)
 	/* Inject new event */
 	if (injectedEvent != NAV_FSM_EVENT_NONE && navFSM[posControl.navState].onEvent[injectedEvent] != NAV_STATE_UNDEFINED) {
 		/* Update state */
-        previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[injectedEvent], currentMillis);
+        previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[injectedEvent]);
 
 		/* Call new state's entry function */
 		while (navFSM[posControl.navState].onEntry) {
 			navigationFSMEvent_t newEvent = navFSM[posControl.navState].onEntry(previousState);
 
 			if ((newEvent != NAV_FSM_EVENT_NONE) && (navFSM[posControl.navState].onEvent[newEvent] != NAV_STATE_UNDEFINED)) {
-                previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[newEvent], currentMillis);
+                previousState = navSetNewFSMState(navFSM[posControl.navState].onEvent[newEvent]);
 			}
 			else {
 				break;
@@ -1239,6 +1229,25 @@ bool isThrustFacingDownwards(void)
 }
 
 /*-----------------------------------------------------------
+ * Checks if position sensor (GPS) is failing for a specified timeout (if enabled)
+ *-----------------------------------------------------------*/
+bool checkForPositionSensorTimeout(void)
+{
+    if (posControl.navConfig->pos_failure_timeout) {
+        if (!posControl.flags.hasValidPositionSensor && ((millis() - posControl.lastValidPositionTimeMs) > (1000 * posControl.navConfig->pos_failure_timeout))) {
+            return true;
+        }
+        else {
+            return false;
+        }
+    }
+    else {
+        // Timeout not defined, never fail
+        return false;
+    }
+}
+
+/*-----------------------------------------------------------
  * Processes an update to XY-position and velocity
  *-----------------------------------------------------------*/
 void updateActualHorizontalPositionAndVelocity(bool hasValidSensor, float newX, float newY, float newVelX, float newVelY)
@@ -1253,6 +1262,7 @@ void updateActualHorizontalPositionAndVelocity(bool hasValidSensor, float newX, 
 
     if (hasValidSensor) {
         posControl.flags.horizontalPositionNewData = 1;
+        posControl.lastValidPositionTimeMs = millis();
     }
     else {
         posControl.flags.horizontalPositionNewData = 0;
@@ -1280,6 +1290,7 @@ void updateActualAltitudeAndClimbRate(bool hasValidSensor, float newAltitude, fl
     if (hasValidSensor) {
         updateDesiredRTHAltitude();
         posControl.flags.verticalPositionNewData = 1;
+        posControl.lastValidAltitudeTimeMs = millis();
     }
     else {
         posControl.flags.verticalPositionNewData = 0;
@@ -1831,6 +1842,22 @@ bool isApproachingLastWaypoint(void)
     }
 }
 
+float getActiveWaypointSpeed(void)
+{
+    uint16_t waypointSpeed = posControl.navConfig->max_speed;
+
+    if (navGetStateFlags(posControl.navState) & NAV_AUTO_WP) {
+        if (posControl.waypointCount > 0 && posControl.waypointList[posControl.activeWaypointIndex].action == NAV_WP_ACTION_WAYPOINT) {
+            waypointSpeed = posControl.waypointList[posControl.activeWaypointIndex].p1;
+
+            if (waypointSpeed < 50 || waypointSpeed > posControl.navConfig->max_speed) {
+                waypointSpeed = posControl.navConfig->max_speed;
+            }
+        }
+    }
+
+    return waypointSpeed;
+}
 
 /*-----------------------------------------------------------
  * A function to reset navigation PIDs and states
@@ -1947,33 +1974,40 @@ static navigationFSMEvent_t selectNavEventFromBoxModeInput(void)
     bool canActivateAltHold = canActivateAltHoldMode();
     bool canActivatePosHold = canActivatePosHoldMode();
 
+    // RTH/Failsafe_RTH can override PASSTHRU
     if (posControl.flags.forcedRTHActivated) {
         // If we request forced RTH - attempt to activate it no matter what
         // This might switch to emergency landing controller if GPS is unavailable
         return NAV_FSM_EVENT_SWITCH_TO_RTH;
     }
     else if (IS_RC_MODE_ACTIVE(BOXNAVRTH)) {
-        if (canActivatePosHold && STATE(GPS_FIX_HOME))
+        if ((FLIGHT_MODE(NAV_RTH_MODE)) || (canActivatePosHold && STATE(GPS_FIX_HOME)))
             return NAV_FSM_EVENT_SWITCH_TO_RTH;
     }
 
+    // PASSTHRU mode has priority over WP/PH/AH
+    if (IS_RC_MODE_ACTIVE(BOXPASSTHRU)) {
+        return NAV_FSM_EVENT_SWITCH_TO_IDLE;
+    }
+
     if (IS_RC_MODE_ACTIVE(BOXNAVWP)) {
-        if (canActivatePosHold && canActivateAltHold && STATE(GPS_FIX_HOME) && ARMING_FLAG(ARMED) && posControl.waypointListValid && (posControl.waypointCount > 0))
+        if ((FLIGHT_MODE(NAV_WP_MODE)) || (canActivatePosHold && canActivateAltHold && STATE(GPS_FIX_HOME) && ARMING_FLAG(ARMED) && posControl.waypointListValid && (posControl.waypointCount > 0)))
             return NAV_FSM_EVENT_SWITCH_TO_WAYPOINT;
     }
 
     if (IS_RC_MODE_ACTIVE(BOXNAVPOSHOLD) && IS_RC_MODE_ACTIVE(BOXNAVALTHOLD)) {
-        if (canActivatePosHold && canActivateAltHold)
+        if ((FLIGHT_MODE(NAV_ALTHOLD_MODE) && FLIGHT_MODE(NAV_POSHOLD_MODE)) || (canActivatePosHold && canActivateAltHold))
             return NAV_FSM_EVENT_SWITCH_TO_POSHOLD_3D;
     }
 
     if (IS_RC_MODE_ACTIVE(BOXNAVPOSHOLD)) {
-        if (canActivatePosHold)
+        if ((FLIGHT_MODE(NAV_POSHOLD_MODE)) || (canActivatePosHold))
             return NAV_FSM_EVENT_SWITCH_TO_POSHOLD_2D;
     }
 
-    if (IS_RC_MODE_ACTIVE(BOXNAVALTHOLD) && canActivateAltHold) {
-        return NAV_FSM_EVENT_SWITCH_TO_ALTHOLD;
+    if (IS_RC_MODE_ACTIVE(BOXNAVALTHOLD)) {
+        if ((FLIGHT_MODE(NAV_ALTHOLD_MODE)) || (canActivateAltHold))
+            return NAV_FSM_EVENT_SWITCH_TO_ALTHOLD;
     }
 
     return NAV_FSM_EVENT_SWITCH_TO_IDLE;
@@ -2137,7 +2171,6 @@ void navigationInit(navConfig_t *initialnavConfig,
 {
     /* Initial state */
     posControl.navState = NAV_STATE_IDLE;
-    posControl.navStateActivationTimeMs = millis();
 
     posControl.flags.horizontalPositionNewData = 0;
     posControl.flags.verticalPositionNewData = 0;
