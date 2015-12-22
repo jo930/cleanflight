@@ -46,11 +46,6 @@
 #include "config/runtime_config.h"
 #include "config/config.h"
 
-/*-----------------------------------------------------------
- * Backdoor to MW heading controller
- *-----------------------------------------------------------*/
-extern int16_t magHold;
-
 #if defined(NAV)
 
 navigationPosControl_t  posControl;
@@ -695,8 +690,8 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_INITIALIZE(navigati
             return NAV_FSM_EVENT_SWITCH_TO_RTH_2D;
         }
     }
-    /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (checkForPositionSensorTimeout()) {
+    /* No HOME set or position sensor failure timeout - land */
+    else if (!STATE(GPS_FIX_HOME) || checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     /* No valid POS sensor but still within valid timeout - wait */
@@ -755,8 +750,8 @@ static navigationFSMEvent_t navOnEnteringState_NAV_STATE_RTH_2D_GPS_FAILING(navi
     if (posControl.flags.hasValidPositionSensor && STATE(GPS_FIX_HOME)) {
         return NAV_FSM_EVENT_SUCCESS;       // NAV_STATE_RTH_2D_HEAD_HOME
     }
-    /* No pos sensor available for NAV_WAIT_FOR_GPS_TIMEOUT_MS - land */
-    else if (checkForPositionSensorTimeout()) {
+    /* No HOME set or position sensor failure timeout - land */
+    else if (!STATE(GPS_FIX_HOME) || checkForPositionSensorTimeout()) {
         return NAV_FSM_EVENT_SWITCH_TO_EMERGENCY_LANDING;
     }
     /* No valid POS sensor but still within valid timeout - wait */
@@ -1596,16 +1591,6 @@ static void setupAltitudeController(void)
     }
 }
 
-static void applyAltitudeController(uint32_t currentTime)
-{
-    if (STATE(FIXED_WING)) {
-        applyFixedWingAltitudeController(currentTime);
-    }
-    else {
-        applyMulticopterAltitudeController(currentTime);
-    }
-}
-
 static bool adjustAltitudeFromRCInput(void)
 {
     if (STATE(FIXED_WING)) {
@@ -1621,12 +1606,12 @@ static bool adjustAltitudeFromRCInput(void)
  *-----------------------------------------------------------*/
 static void resetHeadingController(void)
 {
-    magHold = CENTIDEGREES_TO_DEGREES(posControl.actualState.yaw);
-}
-
-static void applyHeadingController(void)
-{
-    magHold = CENTIDEGREES_TO_DEGREES(posControl.desiredState.yaw);
+    if (STATE(FIXED_WING)) {
+        resetFixedWingHeadingController();
+    }
+    else {
+        resetMulticopterHeadingController();
+    }
 }
 
 static bool adjustHeadingFromRCInput(void)
@@ -1652,16 +1637,6 @@ static void resetPositionController(void)
     }
 }
 
-static void applyPositionController(uint32_t currentTime)
-{
-    if (STATE(FIXED_WING)) {
-        applyFixedWingPositionController(currentTime);
-    }
-    else {
-        applyMulticopterPositionController(currentTime);
-    }
-}
-
 static bool adjustPositionFromRCInput(void)
 {
     if (STATE(FIXED_WING)) {
@@ -1669,20 +1644,6 @@ static bool adjustPositionFromRCInput(void)
     }
     else {
         return adjustMulticopterPositionFromRCInput();
-    }
-}
-
-
-/*-----------------------------------------------------------
- * WP controller
- *-----------------------------------------------------------*/
-static void applyEmergencyLandingController(uint32_t currentTime)
-{
-    if (STATE(FIXED_WING)) {
-        applyFixedWingEmergencyLandingController();
-    }
-    else {
-        applyMulticopterEmergencyLandingController(currentTime);
     }
 }
 
@@ -1923,18 +1884,11 @@ void applyWaypointNavigationAndAltitudeHold(void)
 
     /* Process controllers */
     navigationFSMStateFlags_t navStateFlags = navGetStateFlags(posControl.navState);
-    if (navStateFlags & NAV_CTL_EMERG) {
-        applyEmergencyLandingController(currentTime);
+    if (STATE(FIXED_WING)) {
+        applyFixedWingNavigationController(navStateFlags, currentTime);
     }
     else {
-        if (navStateFlags & NAV_CTL_ALT)
-            applyAltitudeController(currentTime);
-
-        if (navStateFlags & NAV_CTL_POS)
-            applyPositionController(currentTime);
-
-        if (navStateFlags & NAV_CTL_YAW)
-            applyHeadingController();
+        applyMulticopterNavigationController(navStateFlags, currentTime);
     }
 
 #if defined(NAV_BLACKBOX)
